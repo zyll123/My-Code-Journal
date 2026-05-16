@@ -1,3 +1,8 @@
+# new_day.py
+# 用途：在 00_Daily_Drafts 目录下生成当天的 Markdown 日记模板文件，
+#       如果没有则创建并自动在 VS Code 中打开；如果已存在则提示用户继续编辑。
+# 运行方式：每天开始工作时手动执行一次，快速初始化当天的日记文件。
+
 import os
 import datetime
 
@@ -5,7 +10,7 @@ import datetime
 # ⚙️ 配置区：在这里修改你的路径
 # ==========================================
 # 相对路径写法：因为脚本在 Scripts 里，"../" 表示退回上一级目录
-TARGET_DIR = "../00_Daily_Drafts" 
+TARGET_DIR = "../00_Daily_Drafts"
 
 # 如果你想用绝对路径（直接指定死位置），可以改成类似下面这样：
 # TARGET_DIR = "D:/AI/My-Code-Journal/00_Daily_Drafts"
@@ -18,16 +23,18 @@ file_name = f"{today}.md"
 # 🌟 关键点 1：确保目标文件夹存在，如果不存在，Python 会自动帮你建一个
 os.makedirs(TARGET_DIR, exist_ok=True)
 
-# 🌟 关键点 2：将文件夹路径和文件名安全地拼接在一起
+# 🌟 关键点 2：将文件夹路径和文件名安全地拼接在一起（跨平台兼容）
 full_path = os.path.join(TARGET_DIR, file_name)
 
+# 定义 Markdown 代码块围栏符号（避免在 f-string 中直接写花括号冲突）
 md_code = "```"
 
 # 2. 定义你的专属日记模板
+# 分为三个大区：灵感与架构 / 科研代码 / 职业随笔
 template = f"""# {today} 研发与创作者日志
 
 ## 🧠 Creator's Flow (灵感与架构)
-- 
+-
 
 ## 🔬 Research & Code (生信分析 / 代码沉淀)
 ### 核心代码片段备份
@@ -37,10 +44,10 @@ template = f"""# {today} 研发与创作者日志
 {md_code}
 
 ### 分析复盘与文献阅读
-- 
+-
 
 ## 💼 Career & Life (职业规划与随笔)
-- 
+-
 """
 
 # 3. 创建并写入当天的 Markdown 文件（注意这里统一换成了 full_path）
@@ -49,7 +56,8 @@ if not os.path.exists(full_path):
         file.write(template)
     print(f"✅ 成功生成今日日记模板: {full_path}")
 else:
+    # 如果文件已存在，不再覆盖，避免丢失已有的记录内容
     print(f"⚠️ 文件 {file_name} 已存在，请直接在 VS Code 中继续记录！")
 
-# 4. 自动在 VS Code 中打开这个生成好的文件
+# 4. 自动在 VS Code 中打开这个生成好的文件（需要 `code` 命令在 PATH 中）
 os.system(f"code {full_path}")
