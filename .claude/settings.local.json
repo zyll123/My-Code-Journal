@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(python -c ' *)",
+      "Read(//tmp/**)",
+      "Bash(echo \"DONE: $\\(wc -l < d:\\\\\\\\AI\\\\\\\\My-Code-Journal\\\\\\\\nb_cells_dump.txt\\) lines\")",
+      "Bash(rm -f \"d:\\\\AI\\\\My-Code-Journal\\\\nb_cells_dump.txt\")"
+    ],
+    "additionalDirectories": [
+      "d:\\AI\\My-Code-Journal"
+    ]
+  }
+}

@@ -1,0 +1,837 @@
+===== CELL 0 (code) =====
+# Micro correlation
+.libPaths()
+library(Signac)
+library(Seurat)
+library(dplyr)
+library(ggplot2)
+library(data.table)
+library(rtracklayer)
+library(stringr)
+library(cowplot)
+library(patchwork)
+library(tidyverse)
+library(ggpubr)
+library(dplyr)
+library(stringr)
+library(ggplot2)
+library(ggpubr)
+
+===== CELL 1 (code) =====
+tmp=read.csv('/cwStorage/nodecw_group/czh_data/Glasnost/mm/RSS/RSS-single-major_brain_major.csv')
+rownames(tmp)=tmp$X
+tmp$X=NULL
+tmp=as.data.frame(t(tmp))
+
+
+===== CELL 2 (code) =====
+tmp
+
+===== CELL 3 (code) =====
+rownames(tmp)[order(tmp$`sub | Ast-ep`)][1:20]
+rownames(tmp)[order(tmp$`pal | Ast-ep`)][1:20]
+
+===== CELL 4 (code) =====
+length(intersect(rownames(tmp)[order(tmp$`pal | OPC`)][1:20],rownames(tmp)[order(tmp$`sub | OPC`)][1:20]))
+
+===== CELL 5 (code) =====
+
+
+===== CELL 6 (code) =====
+spatial=read.csv('/home1/yzhang/Project_SN_Multiome/Analysis/Spatial_integration/sn_plaqueD_metadata.csv')
+# 假设你的数据框叫 df，第一列叫 V1
+spatial$Clean_Barcode <- gsub("@.*$", "", spatial$X)
+
+# 解释：
+# "@" 匹配字符 @
+# ".*" 匹配 @ 后面的任意字符，直到字符串结尾("$")
+# "" 表示将其替换为什么都没有（即删除）
+head(spatial)
+
+===== CELL 7 (code) =====
+dim(spatial)
+
+===== CELL 8 (code) =====
+# ===== 读取数据 =====
+combined_full <- readRDS('/public/home/yzhang/zy_data/Project_AD_st/Multiome/Raw_data_0423_full/QC_0512/Combine/Combine_RNA_ATAC_anno_rnafromatac_260219.rds')
+
+DefaultAssay(combined_full) <- "RNA_from_ATAC"
+combined_full
+
+===== CELL 9 (code) =====
+DefaultAssay(combined_full) <- "RNA"
+
+===== CELL 10 (code) =====
+combined_full=subset(combined_full,Final_subclass_name=='334 Microglia NN')
+
+===== CELL 11 (code) =====
+combined_full
+
+===== CELL 12 (code) =====
+library(Seurat)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+
+===== CELL 13 (code) =====
+# 假设你的距离数据框名为 plaque_df
+# 1. 合并元数据
+# 请确保 plaque_df 的 'X' 或 'Clean_Barcode' 与 combined 的 rownames 对应
+new_meta <- combined_full@meta.data 
+new_meta = spatial %>%
+  inner_join(new_meta,by =c( "Clean_Barcode"="cell_id")) %>%
+  mutate(dist_um = min_center_dist / 2)       # 转换为微米
+
+===== CELL 14 (code) =====
+new_meta
+
+===== CELL 15 (code) =====
+# 1. 准备基因列表（已转换为小鼠格式）
+# 注意：KMT3D 在小鼠中对应的常用名是 Kmt2d
+target_genes <- c("Tet2", "Asxl1", "Kmt2d", "Atrx", "Cbl")
+
+# 2. 从 Seurat 对象中提取表达量数据
+# FetchData 会返回一个以 cell_id 为行名的 data.frame
+expr_data <- FetchData(combined_full, vars = target_genes)
+expr_data$brain=combined_full$brain
+expr_data$cell_id <- rownames(expr_data)
+
+# 3. 直接在外部进行数据合并与处理
+# 假设你的距离数据框是 plaque_df，且 'X' 列对应 cell_id
+plot_df <- spatial %>%
+  # 转换距离单位为微米
+  mutate(dist_um = min_center_dist / 2) %>%
+  # 合并表达量（即使 plaque_df 中 X 有重复，join 也会正确处理）
+  inner_join(expr_data, by = c("Clean_Barcode" = "cell_id")) %>%
+  # 转换为长表格格式以便 ggplot 绘图
+  pivot_longer(cols = all_of(target_genes), 
+               names_to = "Gene", 
+               values_to = "Expression")
+
+===== CELL 16 (code) =====
+names(plot_df)
+
+===== CELL 17 (code) =====
+library(dplyr)
+library(ggplot2)
+library(stringr)
+
+
+===== CELL 18 (code) =====
+# 1. 定义分箱参数
+bin_size <- 25
+breaks_seq <- seq(0, 2000, by = bin_size)
+
+===== CELL 19 (code) =====
+library(dplyr)
+library(stringr)
+
+# 2. 对前一步生成的 plot_df 进行分箱和汇总计算
+plot_df_binned <- plot_df %>%
+  # 过滤掉超出我们最大分箱范围的离群细胞
+  filter(dist_um <= max(breaks_seq)) %>%
+  mutate(
+    # 使用 cut() 将连续距离划分为离散的 bin
+    dist_bin = cut(dist_um, breaks = breaks_seq, include.lowest = TRUE, right = FALSE),
+    
+    # 修复报错：直接提取分箱字符串中的第一个数字（兼容带小数点的数值）
+    bin_lower = as.numeric(str_extract(dist_bin, "\\d+\\.?\\d*")),
+    
+    # 计算中点作为 X 轴坐标
+    bin_center = bin_lower + (bin_size / 2)
+  )
+
+# 检查一下提取是否正确
+head(plot_df_binned %>% select(dist_um, dist_bin, bin_lower, bin_center))
+
+===== CELL 20 (code) =====
+plot_df_binned[(plot_df_binned$bin_center=='13.5'),]
+
+===== CELL 21 (code) =====
+# 3. 按脑区、基因和距离 Bin 计算均值和标准误 (SE)
+df_summary <- plot_df_binned %>%
+  group_by(brain, Gene, bin_center) %>%
+  summarise(
+    mean_expr = mean(Expression, na.rm = TRUE),
+    # 可选：计算标准误，用于画误差棒 (SD / sqrt(N))
+    se_expr = sd(Expression, na.rm = TRUE) / sqrt(n()),
+    # 记录该 bin 里的细胞数量
+    cell_count = n(), 
+    .groups = "drop"
+  ) %>%
+  # 可选：过滤掉细胞数量太少的 bin（例如少于 5 个细胞），防止均值波动太大
+  filter(cell_count >= 5)
+
+===== CELL 22 (code) =====
+df_summary
+
+===== CELL 23 (code) =====
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+# ==========================================
+# 1. 提取表达量数据
+# ==========================================
+target_genes <- c("Tet2", "Asxl1", "Kmt2d", "Atrx", "Cbl")
+
+# 从 Seurat 对象提取数据并添加脑区和细胞ID
+expr_data <- FetchData(combined_full, vars = target_genes)
+expr_data$brain <- combined_full$brain
+expr_data$cell_id <- rownames(expr_data)
+
+# ==========================================
+# 2. 空间分箱、合并与汇总 (一步到位链式操作)
+# ==========================================
+bin_size <- 25
+
+df_binned_genes <- spatial %>%
+  # 换算物理距离 (um)
+  mutate(dist_um = min_center_dist / 2) %>%
+  # 过滤掉超出 2000um 的细胞 (根据你需要分析的最大距离而定)
+  filter(dist_um <= 200) %>%
+  # 与表达量数据合并
+  inner_join(expr_data, by = c("Clean_Barcode" = "cell_id")) %>%
+  
+  # ✨ 核心极简替换：用 floor() 一步直接计算出所在的箱体中心坐标！
+  mutate(
+    bin_center = floor(dist_um / bin_size) * bin_size + (bin_size / 2)
+  ) %>%
+  
+  # 转换为长表格，把 5 个基因压缩成 Gene 和 Expression 两列，方便画图
+  pivot_longer(
+    cols = all_of(target_genes),
+    names_to = "Gene",
+    values_to = "Expression"
+  ) %>%
+  
+  # 按【箱体中心】、【脑区】和【基因】分组计算均值
+  group_by(bin_center, brain, Gene) %>%
+  summarise(
+    Mean_Expr = mean(Expression, na.rm = TRUE),
+    SE_Expr = sd(Expression, na.rm = TRUE) / sqrt(n()),
+    # 因为拉长了数据，这里的 n() 代表该基因在该 bin 中的细胞数
+    Count = n(), 
+    .groups = "drop"
+  ) %>%
+  
+  # 过滤掉细胞数太少的箱子，防止极端噪点（例如距斑块极近或极远的地方细胞太少）
+  filter(Count >= 3) 
+
+# ==========================================
+# 3. 绘制多基因空间梯度折线图
+# ==========================================
+p_genes_spatial <- ggplot(df_binned_genes, aes(x = bin_center, y = Mean_Expr, color = Gene)) +
+  # 添加趋势折线和均值散点
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) +
+  
+  # (可选) 添加误差棒展现数据分布，如果觉得多基因导致画面太乱，可以加 # 注释掉这行
+  geom_errorbar(aes(ymin = Mean_Expr - SE_Expr, ymax = Mean_Expr + SE_Expr), 
+                width = 5, alpha = 0.5) +
+  
+  # 按脑区分面显示 (不同脑区单独的图表)
+  facet_wrap(~ brain, scales = "free_y") +
+  
+  theme_bw(base_size = 12) +
+  labs(
+    title = "表观遗传调节因子表达随斑块距离的变化趋势",
+    subtitle = paste0("Bin size: ", bin_size, " µm | 均值折线图"),
+    x = "到斑块中心的距离 (µm)",
+    y = "平均标准化表达水平 (Mean Expression)"
+  ) +
+  theme(
+    strip.background = element_rect(fill = "#f2f2f2", color = "black"),
+    strip.text = element_text(face = "bold", size = 11),
+    legend.position = "bottom",
+    legend.title = element_blank(),
+    panel.grid.minor = element_blank() # 去除小网格线让画面更干净
+  )
+
+# 打印图表
+print(p_genes_spatial)
+
+# 保存图片 (按需解开注释)
+# ggsave("Epigenetic_Genes_Spatial_Gradient.pdf", p_genes_spatial, width = 10, height = 6)
+
+===== CELL 24 (markdown) =====
+# spatial GRN
+
+===== CELL 25 (code) =====
+library(dplyr)
+
+# 1. 读入数据，强制 R 语言保留原始列名（不将特殊符号变成点号）
+AUC_gene <- read.csv('/home1/yzhang/Project_SN_Multiome/Analysis/Scenic+/Version_2_mouse/gene_AUC_matrix.csv', check.names = FALSE)
+
+# 2. 识别并过滤列
+# 第一列通常是细胞ID，我们先把它单独拿出来（假设列名叫 "Cell" 或 第一列）
+cell_col_name <- colnames(AUC_gene)[1]
+
+# 获取所有列名
+all_cols <- colnames(AUC_gene)
+
+# 使用 grep 匹配包含 "+/+" 的列
+# 注意：在正则表达式中 "+" 是特殊字符，需要用 "\\+" 进行转义
+plus_plus_cols <- all_cols[grepl("\\+/\\+", all_cols)]
+
+# 将 细胞ID列 和 带有 "+/+" 的列合并，完成过滤
+AUC_gene <- AUC_gene[, c(cell_col_name, plus_plus_cols)]
+
+# 3. 检查过滤后的列名是否正确
+print(paste("过滤后剩余列数:", ncol(AUC_gene)))
+head(colnames(AUC_gene))
+
+fix_cell_ids <- function(ids) {
+  # 正则表达式解释：
+  # ^([^-]+) : 匹配开头到第一个 "-" 之间的所有字符（即 Barcode），记为组1
+  # -        : 匹配中间的 "-"
+  # (.*)$    : 匹配 "-" 后面的所有字符（即 Sample），记为组2
+  # \\2_\\1  : 替换为 "组2_组1"
+  gsub("^([^-]+)-(.*)$", "\\2_\\1", ids)
+}
+
+AUC_gene[[cell_col_name]] <- fix_cell_ids(AUC_gene[[cell_col_name]])
+
+===== CELL 26 (code) =====
+head(AUC_gene)
+
+===== CELL 27 (code) =====
+spatial=read.csv('/home1/yzhang/Project_SN_Multiome/Analysis/Spatial_integration/sn_plaqueD_metadata.csv')
+# 假设你的数据框叫 df，第一列叫 V1
+spatial$Clean_Barcode <- gsub("@.*$", "", spatial$X)
+
+# 解释：
+# "@" 匹配字符 @
+# ".*" 匹配 @ 后面的任意字符，直到字符串结尾("$")
+# "" 表示将其替换为什么都没有（即删除）
+head(spatial)
+
+===== CELL 28 (code) =====
+# ===== 读取数据 =====
+combined_full <- readRDS('/public/home/yzhang/zy_data/Project_AD_st/Multiome/Raw_data_0423_full/QC_0512/Combine/Combine_RNA_ATAC_anno_rnafromatac_260219.rds')
+
+DefaultAssay(combined_full) <- "RNA"
+combined_full
+
+===== CELL 29 (code) =====
+meta=combined_full@meta.data %>%
+  select('genotype','month','brain','cell_id','class_id_label')
+
+===== CELL 30 (code) =====
+spatial=spatial%>%
+  select('X','min_center_dist','sample_id','Clean_Barcode')%>%
+  mutate(num_dist=min_center_dist/2)
+
+===== CELL 31 (code) =====
+spatial=spatial%>%
+  inner_join(AUC_gene,by = c("Clean_Barcode" = "Cell"))%>%
+  inner_join(meta,by = c("Clean_Barcode" = "cell_id"))
+dim(spatial)
+head(spatial)
+
+===== CELL 32 (code) =====
+names(spatial)
+
+===== CELL 33 (code) =====
+library(ggplot2)
+library(mgcv) # GAM 模型需要这个包
+
+target_grn <- "`Mef2c_direct_+/+_(703g)`"
+
+plot_gam <- ggplot(spatial, aes_string(x = "min_center_dist", y = target_grn, color = "genotype", fill = "genotype")) +
+  # 使用 gam 替代 loess，bs="cs" 表示使用收缩平滑样条
+  geom_smooth(method = "gam", formula = y ~ s(x, bs = "cs"), se = TRUE, alpha = 0.2) + 
+  theme_classic() +
+  labs(
+    title = "GRN Activity vs. Distance (GAM Smoothing)",
+    x = "Distance to Plaque Center",
+    y = "GRN Activity Score"
+  )
+
+print(plot_gam)
+
+===== CELL 34 (markdown) =====
+## 线性回归
+
+===== CELL 35 (markdown) =====
+1. 在侧面标注beta和P值
+2. 分脑区进行差异分析？
+3. TF本身变化+GRN差异结果在图上的标注
+4. 用major cell; 很多class id没有结果; OPC和olig分开
+
+===== CELL 36 (code) =====
+library(dplyr)
+library(stats)
+
+===== CELL 37 (code) =====
+print("读取差异分析结果...")
+DGRN <- read.csv('/home1/yzhang/Project_SN_Multiome/Analysis/Scenic+/Version_2_mouse/Differential_GRN_0515.csv')
+sig_diff_grn <- DGRN %>%
+  filter(p_val_adj < 0.05 & abs(log2FC) > 0.1)
+print(paste("共有", nrow(sig_diff_grn), "个 CellType-GRN 组合通过了差异分析显著性筛选。"))
+
+print("读取 RSS 矩阵...")
+RSS <- read.csv('/home1/yzhang/Project_SN_Multiome/Analysis/Scenic+/Version_2_mouse/RSS/RSS_class_id_label.csv', row.names = 1)
+RSS <- as.data.frame(t(RSS))
+
+===== CELL 38 (code) =====
+
+
+===== CELL 39 (code) =====
+spatial_sub <- spatial %>% filter(min_center_dist < 200)
+
+# 提取 spatial 数据框中所有复杂的 GRN 列名
+grn_cols_spatial <- grep("\\+/\\+", colnames(spatial_sub), value = TRUE)
+
+# 【核心功能】：构建纯 TF 名字到复杂名字的映射字典
+# 截取纯 TF 名字 (例如把 "Ahctf1_direct_+/+_(39g)" 变成 "Ahctf1")
+pure_tfs_in_spatial <- gsub("_direct_\\+/\\+.*$", "", grn_cols_spatial)
+# 创建 named vector 字典，pure_to_complex["Ahctf1"] 将返回 "Ahctf1_direct_+/+_(39g)"
+pure_to_complex <- setNames(grn_cols_spatial, pure_tfs_in_spatial)
+
+# 获取所有的细胞类型和月龄
+cell_types <- unique(na.omit(spatial_sub$class_id_label))
+months <- unique(na.omit(spatial_sub$month))
+
+===== CELL 40 (code) =====
+# ==========================================
+# 2. 预计算：为每种细胞类型生成 DGRN 与 RSS Top20 的并集列表
+# ==========================================
+print("为每种细胞类型计算 DGRN 和 RSS Top20 的并集...")
+valid_grns_by_ctype <- list()
+
+for (ctype in cell_types) {
+  
+  # a. 获取该细胞类型中显著差异的 GRN
+  # 假设 sig_diff_grn 中的 Regulon 列已经是类似于 Ahctf1_direct_+/+_(39g) 的复杂名字
+  diff_grns <- sig_diff_grn %>%
+    filter(CellType == ctype) %>%
+    pull(Regulon) %>%
+    unique()
+  
+  # 如果 sig_diff_grn 里的名字恰好是纯 TF，也可以借助字典转换它 (以防万一)
+  if (length(diff_grns) > 0 && !any(grepl("\\+/\\+", diff_grns))) {
+    diff_grns <- unname(pure_to_complex[diff_grns])
+    diff_grns <- na.omit(diff_grns)
+  }
+  
+  # b. 获取该细胞类型中 RSS Top 20 的 GRN (纯 TF 名字)
+  if (ctype %in% colnames(RSS)) {
+    # 按照当前细胞类型的 RSS 得分降序排列，取前 20 个行名
+    top20_pure_tfs <- rownames(RSS)[order(RSS[[ctype]], decreasing = TRUE)[1:20]]
+    
+    # 使用字典，将这 20 个纯 TF 映射为空间数据中的复杂列名
+    top20_complex_grns <- unname(pure_to_complex[top20_pure_tfs])
+    top20_complex_grns <- na.omit(top20_complex_grns) # 剔除空间数据中不存在的 TF
+  } else {
+    top20_complex_grns <- character(0)
+    message(paste("警告:", ctype, "不存在于 RSS 矩阵列名中。"))
+  }
+  
+  # c. 取两者并集
+  combined_grns <- unique(c(diff_grns, top20_complex_grns))
+  
+  # 确保选出的这些 GRN 都真实存在于 spatial_sub 的列名中
+  combined_grns <- intersect(combined_grns, colnames(spatial_sub))
+  
+  valid_grns_by_ctype[[ctype]] <- combined_grns
+}
+
+===== CELL 41 (code) =====
+valid_grns_by_ctype
+
+===== CELL 42 (code) =====
+
+
+===== CELL 43 (code) =====
+
+
+===== CELL 44 (code) =====
+# ==========================================
+# 3. 三重循环遍历：细胞类型 -> 月龄 -> GRN
+# ==========================================
+results_list <- list()
+print("开始线性回归分析...")
+
+for (ctype in cell_types) {
+  
+  # 获取刚刚算出来的、在该细胞类型中活跃度 > 10% 的 GRN
+  grns_to_test <- valid_grns_by_ctype[[ctype]]
+  
+  # 进一步确保这些 GRN 存在于 spatial_sub 数据中
+  grns_to_test <- intersect(grns_to_test, colnames(spatial_sub))
+  
+  # 如果这个细胞类型没有满足条件的 GRN，直接跳过
+  if (length(grns_to_test) == 0) {
+    message(paste("跳过", ctype, "- 没有激活比例大于 10% 的 GRN。"))
+    next
+  }
+  
+  for (m in months) {
+    
+    # 提取当前“细胞类型 + 月龄”的子集
+    sub_data <- spatial_sub %>% filter(class_id_label == ctype & month == m)
+    
+    # 防错机制：细胞数小于 30 直接跳过
+    if (nrow(sub_data) < 30) {
+      next
+    }
+    
+    # 注意这里：只循环在此细胞类型中有效的 GRN (grns_to_test)
+    for (grn in grns_to_test) {
+      tryCatch({
+        
+        # 提取当前 GRN 和距离
+        tmp_df <- data.frame(
+          GRN_activity = sub_data[[grn]],
+          min_center_dist = sub_data$min_center_dist
+        )
+        
+        tmp_df <- na.omit(tmp_df)
+        
+        if (nrow(tmp_df) < 30) next
+        
+        # 构建一元线性模型
+        fit <- lm(GRN_activity ~ min_center_dist, data = tmp_df)
+        
+        coef_summary <- summary(fit)$coefficients
+        
+        if ("min_center_dist" %in% rownames(coef_summary)) {
+          beta <- coef_summary["min_center_dist", "Estimate"]
+          pval <- coef_summary["min_center_dist", "Pr(>|t|)"]
+          
+          res_name <- paste(ctype, m, grn, sep = "_")
+          
+          results_list[[res_name]] <- data.frame(
+            CellType = ctype,
+            Month = m,
+            GRN = grn,
+            Beta_Distance = beta,
+            Pval = pval,
+            N_Cells = nrow(tmp_df), 
+            stringsAsFactors = FALSE
+          )
+        }
+        
+      }, error = function(e) {
+        # 发生错误时静默跳过
+      })
+    }
+  }
+}
+
+===== CELL 45 (code) =====
+# ==========================================
+# 4. 整理结果与多重检验校正
+# ==========================================
+grn_stats_df <- bind_rows(results_list)
+
+if (nrow(grn_stats_df) > 0) {
+  # 进行全局的 BH (FDR) 多重检验校正
+  grn_stats_df$FDR <- p.adjust(grn_stats_df$Pval, method = "BH")
+  
+  # 按照显著性 (FDR) 从小到大排序
+  grn_stats_df <- grn_stats_df %>% arrange(FDR)
+  
+  print("分析完成！Top 10 显著结果：")
+  print(head(grn_stats_df, 10))
+} else {
+  print("警告：未得到任何有效结果，请检查数据。")
+}
+
+===== CELL 46 (code) =====
+grn_stats_df
+
+===== CELL 47 (code) =====
+
+
+===== CELL 48 (code) =====
+spatial_grn_results
+
+===== CELL 49 (code) =====
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+# ==========================================
+# 1. 基础设置与数据准备
+# ==========================================
+# 获取所有细胞类型
+cell_types <- unique(grn_stats_df$CellType)
+
+# 设定距离分箱的边界，将最后一个边界设为 Inf (无穷大)
+dist_breaks <- c(seq(0, 200, by = 40), Inf)
+
+# 自动生成美观的区间标签: "0-20", "20-40" ... "180-200", ">=200"
+bin_labels <- c(paste0(seq(0, 160, by = 40), "-", seq(40, 200, by = 40)), ">=200")
+
+# 创建一个专门保存图的列表
+heatmap_list <- list()
+
+print("开始生成分月龄空间热图 (带Beta值标注)...")
+
+# ==========================================
+# 2. 遍历细胞类型并绘图 (含脑区分面逻辑)
+# ==========================================
+for (ctype in cell_types) {
+  
+  # a. 找出该细胞类型下，至少在某一个月龄中 Pval < 0.05 的 GRN
+  ctype_stats <- grn_stats_df %>% filter(CellType == ctype)
+  sig_grns <- ctype_stats  %>% pull(GRN) %>% unique() 
+  
+  # 如果该细胞类型没有显著的 GRN，则跳过
+  if (length(sig_grns) == 0) {
+    message(paste("跳过", ctype, ": 没有显著相关的 GRN。"))
+    next
+  }
+  
+  # 【核心修改 1】：判断是否为胶质细胞 (名称中不包含 Glut 和 Gaba，忽略大小写)
+  is_glial <- !grepl("Glut|Gaba", ctype, ignore.case = TRUE)
+  
+  # 【核心修改 2】：提取需要遍历的脑区
+  if (is_glial) {
+    # 如果是胶质细胞，去 spatial 表里抓取该细胞分布的所有脑区
+    regions_to_plot <- spatial %>% 
+      filter(class_id_label == ctype) %>% 
+      pull(brain) %>% 
+      unique() %>% 
+      na.omit()
+  } else {
+    # 神经元等则默认合并绘制，标记为 "All"
+    regions_to_plot <- c("All")
+  }
+  
+  # 【核心修改 3】：嵌套循环，根据 regions_to_plot 绘制单张或多张图
+  for (reg in regions_to_plot) {
+    
+    # b. 从 spatial 数据中提取该细胞类型的数据，并按需过滤脑区
+    plot_data <- spatial %>% filter(class_id_label == ctype)
+    
+    if (reg != "All") {
+      plot_data <- plot_data %>% filter(brain == reg)
+    }
+    
+    # 防御性检查：如果该脑区内没有该细胞数据，直接跳过
+    if (nrow(plot_data) == 0) {
+      message(paste("跳过", ctype, "在脑区", reg, "的绘图：数据为空。"))
+      next
+    }
+    
+    plot_data <- plot_data %>%
+      select(month, min_center_dist, all_of(sig_grns)) %>%
+      mutate(Dist_Bin = cut(min_center_dist, 
+                            breaks = dist_breaks, 
+                            labels = bin_labels, 
+                            include.lowest = TRUE)) %>%
+      drop_na(Dist_Bin) 
+    
+    # c. 数据宽转长，并计算每个月龄、每个距离箱子的平均活性
+    plot_data_long <- plot_data %>%
+      pivot_longer(cols = all_of(sig_grns), names_to = "GRN", values_to = "Activity") %>%
+      group_by(month, Dist_Bin, GRN) %>%
+      summarise(Mean_Activity = mean(Activity, na.rm = TRUE), .groups = 'drop')
+    
+    # d. Z-score 标准化
+    plot_data_long <- plot_data_long %>%
+      group_by(GRN, month) %>%
+      mutate(Z_Score = as.numeric(scale(Mean_Activity))) %>%
+      ungroup()
+    
+    # e. 将统计显著性合并进来，并生成【星号 + Beta值】的复合标签
+    plot_data_long <- plot_data_long %>%
+      left_join(ctype_stats %>% select(Month, GRN, Pval, Beta_Distance), 
+                by = c("month" = "Month", "GRN" = "GRN")) %>%
+      mutate(
+        Sig_Star = case_when(
+          is.na(Pval) ~ "",
+          Pval < 0.001 ~ "***",
+          Pval < 0.01  ~ "**",
+          Pval < 0.05  ~ "*",
+          TRUE         ~ ""
+        ),
+        Label_Text = ifelse(Sig_Star != "", 
+                            paste0(Sig_Star, "\n", signif(Beta_Distance, 2)), 
+                            "")
+      )
+    
+    # f. 决定星号画在哪：画在第一个 levels ("0-20") 上
+    first_bin <- levels(plot_data_long$Dist_Bin)[1]
+    annotation_data <- plot_data_long %>% filter(Dist_Bin == first_bin)
+    
+    # 按照总体 Beta_Distance 给 GRN 排序
+    grn_order <- ctype_stats %>%
+      group_by(GRN) %>%
+      summarise(mean_beta = mean(Beta_Distance, na.rm = TRUE)) %>%
+      arrange(mean_beta) %>%
+      pull(GRN)
+    
+    plot_data_long$GRN <- factor(plot_data_long$GRN, levels = grn_order)
+    annotation_data$GRN <- factor(annotation_data$GRN, levels = grn_order)
+    
+    # ==========================================
+    # 3. 使用 ggplot2 绘制分面热图
+    # ==========================================
+    # 动态生成标题和列表命名
+    plot_title <- ifelse(reg == "All", 
+                         paste("Spatial GRN Activity in", ctype), 
+                         paste("Spatial GRN Activity in", ctype, "(", reg, ")"))
+    
+    list_name <- ifelse(reg == "All", 
+                        ctype, 
+                        paste(ctype, reg, sep = "_"))
+    
+    p <- ggplot(plot_data_long, aes(x = Dist_Bin, y = GRN, fill = Z_Score)) +
+      geom_tile(color = "white", linewidth = 0.2) +  
+      
+      geom_text(data = annotation_data, aes(label = Label_Text), 
+                color = "black", size = 2.5, fontface = "bold", 
+                hjust = 0, nudge_x = -0.4) + 
+      
+      scale_fill_gradient2(low = "#313695", mid = "white", high = "#a50026", midpoint = 0) +
+      scale_y_discrete(labels = function(x) gsub("_direct_\\+/\\+", "", x)) +
+      
+      facet_wrap(~ month, ncol = length(unique(plot_data_long$month))) + 
+      labs(
+        title = plot_title,
+        subtitle = "Columns: Distance Bins (µm) | Annotated with Sig Level (* P<0.05) & Beta value",
+        x = "Distance to Plaque Center",
+        y = "Significant GRNs",
+        fill = "Z-Score"
+      ) +
+      theme_minimal() +
+      coord_cartesian(clip = "off") + 
+      theme(
+        axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+        axis.text.y = element_text(size = 8),
+        panel.grid = element_blank(), 
+        strip.text = element_text(size = 12, face = "bold", margin = margin(b = 10)), 
+        strip.background = element_rect(fill = "grey90", color = NA),
+        plot.margin = margin(t = 10, r = 10, b = 10, l = 40, unit = "pt") 
+      )
+    
+    # 保存进 list 并打印
+    heatmap_list[[list_name]] <- p
+    print(p) 
+  }
+}
+
+===== CELL 50 (code) =====
+
+
+===== CELL 51 (code) =====
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+# ==========================================
+# 1. 设定目标细胞类型、目标 TF 和数据准备
+# ==========================================
+target_ctype <- "34 Immune" 
+target_tf <- "Ebf1"
+
+print(paste("开始生成", target_ctype, "中", target_tf, "的斑块距离折线图..."))
+
+dist_breaks <- c(seq(0, 200, by = 40), Inf)
+bin_labels <- c(paste0(seq(0, 160, by = 40), "-", seq(40, 200, by = 40)), ">=200")
+
+# a. 提取 Immune 细胞的统计结果
+ctype_stats <- grn_stats_df %>% filter(CellType == target_ctype)
+sig_grns <- ctype_stats %>% pull(GRN) %>% unique()
+
+# 只保留 Spi1
+sig_grns <- sig_grns[grepl(paste0("^", target_tf, "_"), sig_grns)]
+
+if (length(sig_grns) == 0) {
+  stop(paste("错误：在", target_ctype, "中没有找到名为", target_tf, "的 GRN。"))
+}
+
+# ==========================================
+# 2. 数据处理与 Z-score 计算
+# ==========================================
+plot_data <- spatial %>%
+  filter(class_id_label == target_ctype) %>%
+  select(month, min_center_dist, all_of(sig_grns)) %>%
+  mutate(Dist_Bin = cut(min_center_dist, 
+                        breaks = dist_breaks, 
+                        labels = bin_labels, 
+                        include.lowest = TRUE)) %>%
+  drop_na(Dist_Bin) 
+
+# 宽转长，计算均值
+plot_data_long <- plot_data %>%
+  pivot_longer(cols = all_of(sig_grns), names_to = "GRN", values_to = "Activity") %>%
+  group_by(month, Dist_Bin, GRN) %>%
+  summarise(Mean_Activity = mean(Activity, na.rm = TRUE), .groups = 'drop')
+
+# 计算 Z-score
+plot_data_long <- plot_data_long %>%
+  group_by(GRN, month) %>%
+  mutate(Z_Score = as.numeric(scale(Mean_Activity))) %>%
+  ungroup()
+
+# ==========================================
+# 3. 将统计信息整合入【分面标题(Facet_Label)】中
+# ==========================================
+plot_data_long <- plot_data_long %>%
+  left_join(ctype_stats %>% select(Month, GRN, Pval, Beta_Distance), 
+            by = c("month" = "Month", "GRN" = "GRN")) %>%
+  mutate(
+    Sig_Star = case_when(
+      is.na(Pval) ~ "",
+      Pval < 0.001 ~ "***",
+      Pval < 0.01  ~ "**",
+      Pval < 0.05  ~ "*",
+      TRUE         ~ ""
+    ),
+    Clean_GRN = gsub("_direct_\\+/\\+.*$", "", GRN),
+    
+    # 【核心修复】：为每个分面生成独立的标题，例如 "Month 4 | β=-0.015**" 或 "Month 2 | ns"
+    Facet_Label = ifelse(Sig_Star != "", 
+                         paste0(month, " Month | β=", signif(Beta_Distance, 2), Sig_Star),
+                         paste0(month, " Month | ns"))
+  )
+
+# ==========================================
+# 4. 使用 ggplot2 绘制折线图
+# ==========================================
+# 这里 color 和 group 都绑定到 Clean_GRN (只有一个值 "Spi1")，所以只用 1 个颜色完美匹配
+p_line <- ggplot(plot_data_long, aes(x = Dist_Bin, y = Z_Score, color = Clean_GRN, group = Clean_GRN)) +
+  geom_line(linewidth = 1.2, alpha = 0.9) +
+  geom_point(size = 2.5, alpha = 1) +
+  
+  # 【核心修复】：按带有统计数据的 Facet_Label 分面
+  facet_wrap(~ Facet_Label, ncol = length(unique(plot_data_long$month))) +
+  
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
+  
+  # 因为此时 Clean_GRN 只有 "Spi1" 这1个固定值，所以这里提供 1 个颜色完全合法
+  scale_color_manual(values = "#d73027") +
+  
+  labs(
+    title = paste("Spatial Activity Trajectory:", target_tf, "in", target_ctype),
+    subtitle = "Z-scored Activity vs Distance to Plaque | ns: not significant",
+    x = "Distance to Plaque Center (µm)",
+    y = "GRN Activity (Z-Score)",
+    color = "GRN" # 图例标题
+  ) +
+  
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 9),
+    axis.text.y = element_text(size = 10),
+    axis.title = element_text(size = 12, face = "bold"),
+    
+    # 让分面的灰色标题栏更明显，因为现在上面记录了核心的统计结果
+    strip.text = element_text(size = 11, face = "bold", margin = margin(b = 6, t = 6)),
+    strip.background = element_rect(fill = "#E5E7EB", color = "black"),
+    
+    legend.position = "bottom", 
+    legend.text = element_text(size = 10, face = "bold"),
+    panel.grid.minor = element_blank() 
+  )
+
+print(p_line)
+
+===== CELL 52 (code) =====
+
+
