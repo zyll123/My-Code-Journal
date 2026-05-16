@@ -1,27 +1,9 @@
 
 
-# --- Merged via AI on 2026-05-16 ---
-# Differential GRN Analysis: AD vs WT
 ---
-**Goal:** For each cell type × month, identify regulons with significantly different activity between AD and WT (Mann-Whitney U test), filtered to regulons with ≥10% activation rate in at least one group.
-
-**Input:**
-- `combined`: Seurat object with metadata (genotype, month, class_id_label)
-- `activity`: Binarized TF activity matrix (0/1 per cell)
-- `AUC_gene`: Regulon AUC activity matrix (continuous scores)
-
-# --- Merged via AI on 2026-05-16 ---
-## 4. Differential Analysis
-For each **cell type × month** combination:
-1. Filter regulons ≥10% activation in AD **or** WT
-2. Mann-Whitney U test on AUC scores
-3. BH-FDR correction
-
-# --- Merged via AI on 2026-05-16 ---
-## 6. Cross-Brain-Region Comparison
-Only runs when `split_by_brain <- TRUE`. Parses the `CellType` column to extract base cell type and brain region, then compares which regulons are shared vs brain-region-specific.
-
-# --- Merged via AI on 2026-05-16 ---
+## 【AD_Pathology_Notes】来源: 2026-05-16-xhs-draft-yekeqiang-纯文本版.md
+> 合并日期: 2026-05-16
+---
 🌟 阿兹海默症的"破局者"！深理工叶克强教授全科普 🧠
 今天必须安利一位神经科学领域的"真·大佬"——叶克强教授！他不仅发文章发到手软，更是真正把科研变成救命药的人。看完你就知道什么叫做科学家该有的样子 👇
 ✦ ✦ ✦
@@ -56,6 +38,3 @@ DOPEGAL 修饰 Tau 促聚集，揭示蓝斑核易损之谜
 让我们一起期待创新药早日上市，造福千万患者 ❤️
 ✦ ✦ ✦
 #阿尔茨海默症 #神经科学 #科研日常 #药学生物 #深圳理工大学 #中科院深圳先进院 #创新药 #Tau蛋白 #脑科学 #科学家故事
-
-# --- Merged via AI on 2026-05-16 ---
-## 3. Build TF → Regulon Mapping

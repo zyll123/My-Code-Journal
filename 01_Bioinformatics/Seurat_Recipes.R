@@ -4,20 +4,20 @@
 # 【Seurat_R_Pipeline】来源: 2026-05-16-Differential_GRN_clean.ipynb
 # 合并日期: 2026-05-16
 # ==========================================
-[markdown]
-# Differential GRN Analysis: AD vs WT
----
-**Goal:** For each cell type × month, identify regulons with significantly different activity between AD and WT (Mann-Whitney U test), filtered to regulons with ≥10% activation rate in at least one group.
-
-**Input:**
-- `combined`: Seurat object with metadata (genotype, month, class_id_label)
-- `activity`: Binarized TF activity matrix (0/1 per cell)
-- `AUC_gene`: Regulon AUC activity matrix (continuous scores)
-
-[markdown]
-## 1. Libraries & Data Loading
-
-[code]
+# %% [markdown]
+# # Differential GRN Analysis: AD vs WT
+# ---
+# **Goal:** For each cell type × month, identify regulons with significantly different activity between AD and WT (Mann-Whitney U test), filtered to regulons with ≥10% activation rate in at least one group.
+#
+# **Input:**
+# - `combined`: Seurat object with metadata (genotype, month, class_id_label)
+# - `activity`: Binarized TF activity matrix (0/1 per cell)
+# - `AUC_gene`: Regulon AUC activity matrix (continuous scores)
+#
+# %% [markdown]
+# ## 1. Libraries & Data Loading
+#
+# %%
 # ==========================================
 # 1.1 Libraries
 # ==========================================
@@ -29,7 +29,7 @@ library(stringr)
 
 print("Libraries loaded.")
 
-[code]
+# %%
 # ==========================================
 # 1.2 Read all input data
 # ==========================================
@@ -47,11 +47,11 @@ AUC_gene <- AUC_gene[, c(cell_col_name, plus_cols)]
 
 print(paste("AUC columns (after +/+ filter):", ncol(AUC_gene)))
 
-[markdown]
-## 2. Align Cell IDs Across Datasets
-Convert `barcode-sample` → `sample_barcode` format to match.
-
-[code]
+# %% [markdown]
+# ## 2. Align Cell IDs Across Datasets
+# Convert `barcode-sample` → `sample_barcode` format to match.
+#
+# %%
 # ==========================================
 # 2.1 Fix cell ID format & align
 # ==========================================
@@ -78,10 +78,10 @@ meta <- meta[common_cells, ]
 activity <- activity[common_cells, ]
 AUC_gene <- AUC_gene[common_cells, ]
 
-[markdown]
-## 3. Build TF → Regulon Mapping
-
-[code]
+# %% [markdown]
+# ## 3. Build TF → Regulon Mapping
+#
+# %%
 # ==========================================
 # 3.1 Map TF names to AUC regulon column names
 #     e.g. "Ahctf1" → "Ahctf1_direct_+/+_(39g)"
@@ -97,14 +97,14 @@ regulon_mapping <- data.frame(
 
 print(paste("Mapped regulons:", nrow(regulon_mapping)))
 
-[markdown]
-## 3.5 Redefine Cell Types for Differential Analysis
-Neurons (class_id_label ending in Glut/GABA) remain unchanged. Non-neurons are refined:
-- **OPC-Oligo** → split into **OPC** and **Oligo** based on `Final_subclass_name`
-- **Immune** → split into **Micro** (Microglia) and **Other Immune** based on `Final_subclass_name`
-- Set `split_by_brain <- TRUE` to further split non-neuronal types by brain region (`brain` column)
-
-[code]
+# %% [markdown]
+# ## 3.5 Redefine Cell Types for Differential Analysis
+# Neurons (class_id_label ending in Glut/GABA) remain unchanged. Non-neurons are refined:
+# - **OPC-Oligo** → split into **OPC** and **Oligo** based on `Final_subclass_name`
+# - **Immune** → split into **Micro** (Microglia) and **Other Immune** based on `Final_subclass_name`
+# - Set `split_by_brain <- TRUE` to further split non-neuronal types by brain region (`brain` column)
+#
+# %%
 # ==========================================
 # 3.5 Redefine cell type labels
 # ==========================================
@@ -180,14 +180,14 @@ if (split_by_brain) {
   print(sort(table(meta$class_id_label[nn_idx])))
 }
 
-[markdown]
-## 4. Differential Analysis
-For each **cell type × month** combination:
-1. Filter regulons ≥10% activation in AD **or** WT
-2. Mann-Whitney U test on AUC scores
-3. BH-FDR correction
-
-[code]
+# %% [markdown]
+# ## 4. Differential Analysis
+# For each **cell type × month** combination:
+# 1. Filter regulons ≥10% activation in AD **or** WT
+# 2. Mann-Whitney U test on AUC scores
+# 3. BH-FDR correction
+#
+# %%
 # ==========================================
 # 4.1 Main loop: cell_type × month → Mann-Whitney U
 # ==========================================
@@ -268,10 +268,10 @@ print(paste("Total tests:", nrow(final_diff_GRN),
             "| Significant (FDR<0.05):", nrow(significant_GRN)))
 head(significant_GRN, 8)
 
-[markdown]
-## 5. Results: Coverage & Export
-
-[code]
+# %% [markdown]
+# ## 5. Results: Coverage & Export
+#
+# %%
 # ==========================================
 # 5.1 How many cell types does each regulon span?
 # ==========================================
@@ -298,7 +298,7 @@ ggplot(regulon_counts, aes(x = Num_CellTypes)) +
     panel.grid.major.x = element_blank()
   )
 
-[code]
+# %%
 # ==========================================
 # 5.2 Export
 # ==========================================
@@ -311,11 +311,11 @@ print(regulon_counts %>% filter(Num_CellTypes >= 20))
 #           '/home1/yzhang/Project_SN_Multiome/Analysis/Scenic+/Version_2_mouse/Differential_GRN_0515.csv',
 #           row.names = FALSE)
 
-[markdown]
-## 6. Cross-Brain-Region Comparison
-Only runs when `split_by_brain <- TRUE`. Parses the `CellType` column to extract base cell type and brain region, then compares which regulons are shared vs brain-region-specific.
-
-[code]
+# %% [markdown]
+# ## 6. Cross-Brain-Region Comparison
+# Only runs when `split_by_brain <- TRUE`. Parses the `CellType` column to extract base cell type and brain region, then compares which regulons are shared vs brain-region-specific.
+#
+# %%
 # ==========================================
 # 6.1 Cross-brain-region comparison
 # ==========================================
