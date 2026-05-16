@@ -102,7 +102,6 @@ def extract_and_route(file_path) -> None:
     return merged_count
 
 def sync_to_github():
-    # 与之前的 Git 同步逻辑保持一致
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     print("\n🚀 开始自动扫描更改并同步到 GitHub...")
     try:
@@ -113,6 +112,7 @@ def sync_to_github():
         if "nothing to commit" in result.stdout or "无文件要提交" in result.stdout:
             print("✨ 没有任何修改，无需同步。")
         else:
+            print("⏳ 正在通过 SSH 通道推送到云端...")
             subprocess.run(["git", "push", "origin", "main"], check=True)
             print(f"☁️ 完美收工！你的数据图谱已自动构建并于 {now} 备份。")
     except Exception as e:
