@@ -102,38 +102,21 @@ def extract_and_route(file_path) -> None:
     return merged_count
 
 def sync_to_github():
+    # 与之前的 Git 同步逻辑保持一致
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     print("\n🚀 开始自动扫描更改并同步到 GitHub...")
-    
     try:
         os.chdir("..") 
-        
-        # ==========================================
-        # 🔧 新增：自动化网络通道刷新（专治代理假死）
-        # ==========================================
-        print("🔌 正在刷新代理网络通道 (7890)...")
-        # 1. 强制清空旧代理 (不检查报错，因为如果没有旧代理也会报错)
-        subprocess.run(["git", "config", "--global", "--unset", "http.proxy"], capture_output=True)
-        subprocess.run(["git", "config", "--global", "--unset", "https.proxy"], capture_output=True)
-        # 2. 重新挂载新代理
-        subprocess.run(["git", "config", "--global", "http.proxy", "http://127.0.0.1:7890"], check=True)
-        subprocess.run(["git", "config", "--global", "https.proxy", "http://127.0.0.1:7890"], check=True)
-        # ==========================================
-
         subprocess.run(["git", "add", "."], check=True)
         result = subprocess.run(["git", "commit", "-m", f"AI-Merge & Sync: {now}"], capture_output=True, text=True)
         
         if "nothing to commit" in result.stdout or "无文件要提交" in result.stdout:
             print("✨ 没有任何修改，无需同步。")
         else:
-            print("⏳ 正在推送到云端...")
             subprocess.run(["git", "push", "origin", "main"], check=True)
             print(f"☁️ 完美收工！你的数据图谱已自动构建并于 {now} 备份。")
-            
-    except subprocess.CalledProcessError as e:
-        print(f"\n❌ 同步失败，Git 命令执行出错。错误码: {e.returncode}")
     except Exception as e:
-        print(f"\n❌ 发生了未知的系统错误: {e}")
+        print(f"\n❌ 同步失败: {e}")
 
 if __name__ == "__main__":
     today_draft = os.path.join(DRAFTS_DIR, f"{datetime.date.today()}.md")
