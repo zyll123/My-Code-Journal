@@ -68,18 +68,25 @@ def ask_ai_to_classify(content_snippet):
 # 🚀 第三部分：提取、分发与同步逻辑
 # ==========================================
 
-def extract_and_route(file_path) -> None:
-    """读取草稿，提取所有内容块并交给 AI 分发"""
+# ==========================================
+# 🚀 第三部分：提取、分发与同步逻辑
+# ==========================================
+
+def extract_and_route(file_path):
+    """读取草稿，提取所有内容块并交给 AI 分发 (带自动去重)"""
     with open(file_path, 'r', encoding='utf-8') as f:
         content = f.read()
 
-    # 提取 Markdown 中的所有代码块 (带语言标识的)
+    # 提取 Markdown 中的所有代码块
     code_blocks = re.findall(r'```([a-zA-Z]*)\n(.*?)```', content, re.DOTALL)
     
     merged_count = 0
     for lang, code_text in code_blocks:
         code_text = code_text.strip()
-        if not code_text: continue
+        
+        # 【新增防御 1】跳过空代码，并过滤掉日记模板自带的占位提示词
+        if not code_text or "在这里记录有用的" in code_text:
+            continue
             
         print(f"🤖 AI 正在阅读一段 {lang or '未知语言'} 代码...")
         
@@ -88,8 +95,21 @@ def extract_and_route(file_path) -> None:
         
         if target_category in KNOWLEDGE_BASE:
             target_file = KNOWLEDGE_BASE[target_category]
-            os.makedirs(os.path.dirname(target_file), exist_ok=True)
             
+            # 【新增防御 2】查重机制：判断这段代码是否已经存在于目标文件中
+            is_duplicate = False
+            if os.path.exists(target_file):
+                with open(target_file, 'r', encoding='utf-8') as check_f:
+                    existing_content = check_f.read()
+                    if code_text in existing_content:
+                        is_duplicate = True
+            
+            if is_duplicate:
+                print(f"⏩ 代码查重: 发现完全相同的代码，已自动跳过合并。")
+                continue  # 如果重复，直接跳过，进入下一段代码
+            
+            # 如果不重复，则正常追加写入
+            os.makedirs(os.path.dirname(target_file), exist_ok=True)
             with open(target_file, 'a', encoding='utf-8') as target_f:
                 target_f.write(f"\n\n# --- Merged via AI on {datetime.date.today()} ---\n")
                 target_f.write(code_text)
